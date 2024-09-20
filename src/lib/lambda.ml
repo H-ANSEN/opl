@@ -5,6 +5,8 @@ type t =
 
 and identifier = string
 
+(** TODO rework parser to provide better errors this may need to be implemented
+    at the 'Parsers' module *)
 module Parser = struct
   open Parsers
   open Parsers.Let_syntax
@@ -12,7 +14,7 @@ module Parser = struct
   let string_of_chars chars = chars |> List.to_seq |> String.of_seq
 
   let rec parse input =
-    let p = var <|> lambda <|> application in
+    let p = space *> (var <|> lambda <|> application) in
     p input
 
   and var input =
