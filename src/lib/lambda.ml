@@ -13,39 +13,30 @@ module Parser = struct
   open Parsers
   open Parsers.Let_syntax
 
-  let string_of_chars chars = chars |> List.to_seq |> String.of_seq
+  let many1 p =
+    let* first = p and+ rest = many p in
+    return (first :: rest)
 
   let rec parse input =
-    let p = space *> (var <|> lambda <|> application) in
-    p input
+    (space *> (var <|> lambda <|> application)) input
 
   and var input =
-    let p = map identifier ~f:(fun var -> Var var) in 
-    p input
+    (map identifier ~f:(fun var -> Var var)) input
 
   and lambda input =
-    let p =
-      let* param = charp '\\' *> space *> identifier <* space
-      and+ body = charp '.' *> space *> parse in
-      return (Lambda (param, body))
-    in
-    p input
+    (let* vars = charp '\\' *> space *> many1 identifier <* space
+     and+ body = charp '.' *> space *> parse in
+     return @@ List.fold_right (fun var acc -> Lambda (var, acc)) vars body)
+    input
 
   and application input =
-    let p =
-      let* callee = charp '(' *> space *> parse <* space
-      and+ argument = parse <* space <* charp ')' in
-      return (Application (callee, argument))
-    in
-    p input
+    (let* callee = charp '(' *> space *> parse <* space
+     and+ argument = parse <* space <* charp ')' in
+     return (Application (callee, argument)))
+    input
 
-  and space =
-    many (charp ' ' <|> charp '\t' <|> charp '\n' <|> charp '\r')
-
-  and identifier =
-    let* start = alpha
-    and+ rest = many (alpha <|> digit) in
-    return (string_of_chars (start :: rest))
+  and identifier = map alpha ~f:Char.escaped
+  and space = many (charp ' ' <|> charp '\t' <|> charp '\n' <|> charp '\r')
 end
 
 let rec to_string = function

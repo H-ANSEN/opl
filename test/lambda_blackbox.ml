@@ -21,26 +21,11 @@ let%expect_test "single character var test" =
   test_bb "M"; [%expect {| M |}];
 ;;
 
-let%expect_test "multi-character var test" =
-  test_bb "test"; [%expect {| test |}];
-  test_bb "az"; [%expect {| az |}];
-  test_bb "Bx"; [%expect {| Bx |}];
-  test_bb "zL"; [%expect {| zL |}];
-  test_bb "reallyLongVariableName"; [%expect {| reallyLongVariableName |}];
-;;
-
-let%expect_test "alpha-numeric var test" =
-  test_bb "x1234567890"; [%expect {| x1234567890 |}];
-  test_bb "test0"; [%expect {| test0 |}];
-  test_bb "a1b2c3"; [%expect {| a1b2c3 |}];
-  test_bb "t0"; [%expect {| t0 |}];
-;;
-
 let%expect_test "lambda abstraction with var expression" =
   test_bb {| \x.x |}; [%expect {| λx.x |}];
   test_bb {| \a.b |}; [%expect {| λa.b |}];
-  test_bb {| \a.testing |}; [%expect {| λa.testing |}];
-  test_bb {| \a1.a2 |}; [%expect {| λa1.a2 |}];
+  test_bb {| \a.t |}; [%expect {| λa.t |}];
+  test_bb {| \a.a |}; [%expect {| λa.a |}];
 ;;
 
 let%expect_test "lambda abstraction with application" =
@@ -63,4 +48,11 @@ let%expect_test "lambda abstraction with multi-level application" =
   test_bb {| \u.(\z.\v.(z z) \z.(\x.z u)) |}; [%expect {| λu.(λz.λv.(z z) λz.(λx.z u)) |}];
   test_bb {| (\u.\v.((v u) (v y)) (\v.z (v \y.(y y)))) |}; [%expect {| (λu.λv.((v u) (v y)) (λv.z (v λy.(y y)))) |}];
   test_bb {| \x.\v.((v (v x)) \v.\z.x) |}; [%expect {| λx.λv.((v (v x)) λv.λz.x) |}];
+;;
+
+let%expect_test "sequence of variables is expanded" =
+  test_bb {| \xyz.n |}; [%expect {| λx.λy.λz.n |}];
+  test_bb {| \xyz.(x (y z)) |}; [%expect {| λx.λy.λz.(x (y z)) |}];
+  test_bb {| (z \ab.n) |}; [%expect {| (z λa.λb.n) |}];
+  test_bb {| \ab.\cd.\ef.g |}; [%expect {| λa.λb.λc.λd.λe.λf.g |}];
 ;;
