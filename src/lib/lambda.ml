@@ -67,3 +67,17 @@ let free_vars t =
   collect_free_vars set t
 ;;
 
+let bound_vars t =
+  let set = IdentifierSet.empty in
+  let rec collect_bound_vars set = function
+    | Var _ -> IdentifierSet.empty
+    | Lambda (var, body) ->
+      let body_bound = collect_bound_vars set body in
+      IdentifierSet.add var body_bound
+    | Application (exp1, exp2) ->
+      let set1 = collect_bound_vars set exp1 in
+      let set2 = collect_bound_vars set exp2 in
+      IdentifierSet.union set1 set2
+  in
+  collect_bound_vars set t
+;;

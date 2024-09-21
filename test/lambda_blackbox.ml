@@ -1,4 +1,4 @@
-open Opl
+open! Opl
 
 (** Psudo black box tests ensuring that a string value can be converted to the
     internal ast value and then back into the "same" string.
