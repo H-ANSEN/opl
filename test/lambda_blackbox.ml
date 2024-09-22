@@ -49,10 +49,3 @@ let%expect_test "lambda abstraction with multi-level application" =
   test_bb {| (\u.\v.((v u) (v y)) (\v.z (v \y.(y y)))) |}; [%expect {| (λu.λv.((v u) (v y)) (λv.z (v λy.(y y)))) |}];
   test_bb {| \x.\v.((v (v x)) \v.\z.x) |}; [%expect {| λx.λv.((v (v x)) λv.λz.x) |}];
 ;;
-
-let%expect_test "sequence of variables is expanded" =
-  test_bb {| \xyz.n |}; [%expect {| λx.λy.λz.n |}];
-  test_bb {| \xyz.(x (y z)) |}; [%expect {| λx.λy.λz.(x (y z)) |}];
-  test_bb {| (z \ab.n) |}; [%expect {| (z λa.λb.n) |}];
-  test_bb {| \ab.\cd.\ef.g |}; [%expect {| λa.λb.λc.λd.λe.λf.g |}];
-;;

@@ -1,83 +1,71 @@
 type t =
-  | Var of identifier
-  | Lambda of identifier * t 
-  | Application of t * t 
+  | Var of identifier * int  (* variable name, de bruijn index *)
+  | Lambda of identifier * t
+  | Application of t * t
 
 and identifier = string
-    
-module IdentifierSet = Set.Make ( String )
 
-(** TODOO rework parser to provide better errors this may need to be implemented
-    at the 'Parsers' module *)
-module Parser = struct
+(** Parser converting string based representations of lambda calculus into an
+    ast of type [t]. Parser makes use of a context to collect de bruijn indices
+    as input is being processed. This also has the advantage of identifying
+    free and bound variables during parsing.
+
+    Currently any free variable's de burijn index is set to [-1]. Possible todo
+    is include a set of free or bound variables in our type representation so we
+    dont have to walk the AST again! *)
+module Parser : sig
+  val parse : Parsers.Input.t -> t Parsers.result
+end = struct 
   open Parsers
   open Parsers.Let_syntax
 
-  let many1 p =
-    let* first = p and+ rest = many p in
-    return (first :: rest)
+  let find_ctx (c : identifier) (ctx : string list) : int =
+    Option.value ~default:(-1) @@
+      List.find_index (fun s -> c = s) ctx
+  ;;
 
   let rec parse input =
-    (space *> (var <|> lambda <|> application)) input
-
-  and var input =
-    (map identifier ~f:(fun var -> Var var)) input
-
-  and lambda input =
-    (let* vars = charp '\\' *> space *> many1 identifier <* space
-     and+ body = charp '.' *> space *> parse in
-     return @@ List.fold_right (fun var acc -> Lambda (var, acc)) vars body)
+    (let+ (expr, _) = exp ~ctx:[] in (* dispose of context *)
+     expr)
     input
 
-  and application input =
-    (let* callee = charp '(' *> space *> parse <* space
-     and+ argument = parse <* space <* charp ')' in
-     return (Application (callee, argument)))
+  and exp ~(ctx : string list) (input : Input.t) =
+    (let* expr, ctx = space *> (var ctx <|> lambda ctx <|> application ctx) in
+     return (expr, ctx))
+    input
+
+  and var ctx input =
+    (let* var = identifier in
+     let index = find_ctx var ctx in
+     return (Var (var, index), ctx))
+    input
+
+  and application ctx input =
+    (let* callee, ctx = charp '(' *> space *> exp ~ctx <* space in
+     let* argument, ctx = exp ~ctx <* space <* charp ')' in
+     return (Application (callee, argument), ctx))
+    input
+
+  and lambda ctx input =
+    (let* var = charp '\\' *> identifier in
+     let scope_bound_ctx = var :: ctx in
+     let* body, _ = charp '.' *> exp ~ctx:scope_bound_ctx <* space in
+     return (Lambda (var, body), ctx))
     input
 
   and identifier = map alpha ~f:Char.escaped
   and space = many (charp ' ' <|> charp '\t' <|> charp '\n' <|> charp '\r')
 end
 
-let rec to_string = function
-  | Var ident -> ident
-  | Lambda (param, body) -> Printf.sprintf "λ%s.%s" param (to_string body)
-  | Application (exp1, exp2) -> Printf.sprintf "(%s %s)" (to_string exp1) (to_string exp2)
+let rec to_string ?(indices=false) = function
+  | Var (_, x) when indices -> (Int.to_string x)
+  | Var (id, _) -> id
+  | Lambda (_, body) when indices -> Printf.sprintf "λ %s" (to_string ~indices:true body)
+  | Lambda (id, body) -> Printf.sprintf "λ%s.%s" id (to_string body)
+  | Application (e0, e1) -> Printf.sprintf "(%s %s)" (to_string ~indices e0) (to_string ~indices e1)
 ;;
 
 let of_string str =
   let input = Parsers.Input.make str in
   Result.map (fun (result, _) -> result) (Parser.parse input)
-;;
-
-(** see https://en.wikipedia.org/wiki/Lambda_calculus#Free_and_bound_variables
-    for a formal descritpion of the algorithm used below *)
-let free_vars t =
-  let set = IdentifierSet.empty in
-  let rec collect_free_vars set = function
-    | Var ident -> IdentifierSet.add ident set
-    | Lambda (ident, expr) ->
-      let set1 = collect_free_vars set expr in
-      IdentifierSet.remove ident set1
-    | Application (exp1, exp2) ->
-      let set1 = collect_free_vars set exp1 in
-      let set2 = collect_free_vars set exp2 in
-      IdentifierSet.union set1 set2
-  in
-  collect_free_vars set t
-;;
-
-let bound_vars t =
-  let set = IdentifierSet.empty in
-  let rec collect_bound_vars set = function
-    | Var _ -> IdentifierSet.empty
-    | Lambda (var, body) ->
-      let body_bound = collect_bound_vars set body in
-      IdentifierSet.add var body_bound
-    | Application (exp1, exp2) ->
-      let set1 = collect_bound_vars set exp1 in
-      let set2 = collect_bound_vars set exp2 in
-      IdentifierSet.union set1 set2
-  in
-  collect_bound_vars set t
 ;;
