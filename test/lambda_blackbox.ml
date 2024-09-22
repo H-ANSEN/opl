@@ -28,6 +28,13 @@ let%expect_test "lambda abstraction with var expression" =
   test_bb {| \a.a |}; [%expect {| λa.a |}];
 ;;
 
+let%expect_test "application expression" =
+  test_bb {| (a b) |}; [%expect {| (a b) |}];
+  test_bb {| ((a b) c) |}; [%expect {| ((a b) c) |}];
+  test_bb {| ((\a.a b) c) |}; [%expect {| ((λa.a b) c) |}];
+  test_bb {| (\x.x (b (c \y.y))) |}; [%expect {| (λx.x (b (c λy.y))) |}];
+;;
+
 let%expect_test "lambda abstraction with application" =
   test_bb {| \x.(x x) |}; [%expect {| λx.(x x) |}];
   test_bb {| \x.(x y) |}; [%expect {| λx.(x y) |}];
