@@ -12,9 +12,20 @@ let test_dbi str =
      | Error err -> Parsers.Error.to_string err)
 ;;
 
-let%expect_test "simple" =
-  test_dbi {| \t.(u t) |}; [%expect {| λ (u 0) |}];
-  test_dbi {| (\x.x x) |}; [%expect {| (λ 0 x) |}];
-  test_dbi {| \x.\y.x |}; [%expect {| λ λ 1 |}];
-  test_dbi {| \x.\y.\z.(x (z (y z))) |}; [%expect {| λ λ λ (2 (0 (1 0))) |}];
+let%expect_test "de bruijn notation on closed expression" =
+  test_dbi {| \x.x |}; [%expect "λ 0"];
+  test_dbi {| \z.z |}; [%expect "λ 0"];
+  test_dbi {| \x.\y.x |}; [%expect "λ λ 1"];
+  test_dbi {| (\x.\x.x \y.y) |}; [%expect "(λ λ 0 λ 0)"];
+  test_dbi {| (\x.(x x) \x.(x x)) |}; [%expect "(λ (0 0) λ (0 0))"];
+  test_dbi {| \x.\y.\s.\z.(x (s (y (s z))))|}; [%expect "λ λ λ λ (3 (1 (2 (1 0))))"];
+;;
+
+let%expect_test "de bruijn notation on open expression" =
+  test_dbi {| \x.y |}; [%expect "λ 1"];
+  test_dbi {| \x.(x y) |}; [%expect "λ (0 1)"];
+  test_dbi {| \x.\y.(y z) |}; [%expect "λ λ (0 2)"];
+  test_dbi {| \x.(x (y y)) |}; [%expect "λ (0 (1 1)"];
+  test_dbi {| \x.(x (y z)) |}; [%expect "λ (0 (1 2))"]; 
+  test_dbi {| (\x.(x y) \x.(x y)) |}; [%expect "(λ (0 1) λ (0 1))"];
 ;;

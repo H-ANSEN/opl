@@ -1,27 +1,11 @@
 type t =
-  | FreeVar of identifier
-  | BoundVar of identifier * int  (* variable name, de bruijn index *)
+  | Var of identifier * int  (* variable name, de bruijn index *)
   | Lambda of identifier * t
   | Application of t * t
 
 and identifier = string
 
 module IdentifierSet = Set.Make ( String )
-
-(** Preprocessor converting extended lambda calculus into a more strict
-    representation able to be processed by the parser. This creates a sepration
-    allowing the parser to only worry about parsing the stricter subset while
-    the preprocessor worries about the following extensions.
-
-    - Outermost parenthses are added: M N becomes (M N)
-    - Applications are rewritten to be left associative: M N P becomes (M (N P))
-    - Sequences of abstractions are expanded: λxyz.x becomes \x.\y.\z.x
-    - The body of abstractions is extended as far right as possible *)
-module Preprocess = struct
-
-  (** TO-DO *)
-
-end
 
 (** Parser converting string based representations of untyped strict lambda
     calculus into an ast of type [t]. Parser makes use of a context to collect
@@ -34,7 +18,7 @@ end = struct
   open Parsers.Let_syntax
 
   let find_ctx (c : identifier) (ctx : string list) : int =
-    Option.value ~default:(-1) @@
+    Option.value ~default:(List.length ctx) @@
       List.find_index (fun s -> c = s) ctx
   ;;
 
@@ -51,8 +35,7 @@ end = struct
   and var ctx input =
     (let* var = identifier in
      let index = find_ctx var ctx in
-     let value = if index = -1 then FreeVar var else BoundVar (var, index) in
-     return (value, ctx))
+     return (Var (var, index), ctx))
     input
 
   and application ctx input =
@@ -73,8 +56,7 @@ end = struct
 end
 
 let rec to_string ?(indices=false) = function
-  | FreeVar id -> id
-  | BoundVar (id, idx) -> if indices then Int.to_string idx else id
+  | Var (id, idx) -> if indices then Int.to_string idx else id
   | Application (e0, e1) ->
     Printf.sprintf "(%s %s)" (to_string ~indices e0) (to_string ~indices e1)
   | Lambda (id, body) ->
@@ -88,31 +70,13 @@ let of_string str =
 ;;
 
 let free_vars =
-  let set = IdentifierSet.empty in
-  let rec collect_fvars set = function
-    | BoundVar _ -> IdentifierSet.empty
-    | FreeVar id -> IdentifierSet.add id set
-    | Lambda (_, body) -> collect_fvars set body
-    | Application (e0, e1) -> 
-        IdentifierSet.union (collect_fvars set e0) (collect_fvars set e1)
+  let free_vars = IdentifierSet.empty in
+  let rec collect_fvars set depth = function
+    | Var (id, idx) when idx > depth -> IdentifierSet.add id set (* free var  *)
+    | Var _ -> IdentifierSet.empty                               (* bound var *)
+    | Lambda (_, body) -> collect_fvars set (depth + 1) body
+    | Application (e0, e1) ->
+        IdentifierSet.union (collect_fvars set depth e0) (collect_fvars set depth e1)
   in
-  collect_fvars set
-;;
-
-let rec subst ~name ~with' ~in' =
-  match in' with
-  | BoundVar _ -> in'
-  | FreeVar id -> if name = id then with' else in'
-  | Lambda (id, body) -> Lambda (id, subst ~name ~with' ~in':body)
-  | Application (t1, t2) ->
-      Application (subst ~name ~with' ~in':t1, subst ~name ~with' ~in':t2)
-;;
-
-let rec opening ~term ~depth ~with' =
-  match term with
-  | FreeVar _ -> term
-  | BoundVar (_, k) -> if k = depth then with' else term
-  | Lambda (id, body) -> Lambda (id, opening ~depth:(depth + 1) ~with' ~term:body)
-  | Application (t1, t2) ->
-      Application (opening ~depth ~with' ~term:t1, opening ~depth ~with' ~term:t2)
+  collect_fvars free_vars (-1) 
 ;;
