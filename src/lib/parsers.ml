@@ -95,6 +95,12 @@ let rec many (parser : 'a t) : 'a list t =
       | Error _ -> Ok ([result], rest)
 ;;
 
+let many1 (parser : 'a t) : 'a list t =
+  bind parser ~f:(fun first ->
+    bind (many parser) ~f:(fun rest ->
+      return (first :: rest)))
+;;
+
 let notp (parser : 'a t) : unit t =
   fun input ->
     match parser input with

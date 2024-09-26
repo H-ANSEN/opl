@@ -28,6 +28,13 @@ let%expect_test "lambda abstraction with var expression" =
   test_bb {| \a.a |}; [%expect {| λa.a |}];
 ;;
 
+let%expect_test "application expression" =
+  test_bb {| (a b) |}; [%expect {| (a b) |}];
+  test_bb {| ((a b) c) |}; [%expect {| ((a b) c) |}];
+  test_bb {| ((\a.a b) c) |}; [%expect {| ((λa.a b) c) |}];
+  test_bb {| (\x.x (b (c \y.y))) |}; [%expect {| (λx.x (b (c λy.y))) |}];
+;;
+
 let%expect_test "lambda abstraction with application" =
   test_bb {| \x.(x x) |}; [%expect {| λx.(x x) |}];
   test_bb {| \x.(x y) |}; [%expect {| λx.(x y) |}];
@@ -48,11 +55,4 @@ let%expect_test "lambda abstraction with multi-level application" =
   test_bb {| \u.(\z.\v.(z z) \z.(\x.z u)) |}; [%expect {| λu.(λz.λv.(z z) λz.(λx.z u)) |}];
   test_bb {| (\u.\v.((v u) (v y)) (\v.z (v \y.(y y)))) |}; [%expect {| (λu.λv.((v u) (v y)) (λv.z (v λy.(y y)))) |}];
   test_bb {| \x.\v.((v (v x)) \v.\z.x) |}; [%expect {| λx.λv.((v (v x)) λv.λz.x) |}];
-;;
-
-let%expect_test "sequence of variables is expanded" =
-  test_bb {| \xyz.n |}; [%expect {| λx.λy.λz.n |}];
-  test_bb {| \xyz.(x (y z)) |}; [%expect {| λx.λy.λz.(x (y z)) |}];
-  test_bb {| (z \ab.n) |}; [%expect {| (z λa.λb.n) |}];
-  test_bb {| \ab.\cd.\ef.g |}; [%expect {| λa.λb.λc.λd.λe.λf.g |}];
 ;;

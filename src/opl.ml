@@ -7,5 +7,5 @@ let () =
   );
   let program = Sys.argv.(1) in
   match Lambda.of_string program with
-  | Ok ast -> Printf.printf "%s\n" (Lambda.to_string ast)
+  | Ok ast -> Printf.printf "%s\n" (Lambda.to_string ~indices:true ast)
   | Error err -> Printf.printf "%s\n" (Parsers.Error.to_string err)
