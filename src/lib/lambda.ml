@@ -17,24 +17,36 @@ end = struct
   open Parsers
   open Parsers.Let_syntax
 
-  let find_ctx (c : identifier) (ctx : string list) : int =
-    Option.value ~default:(List.length ctx) @@
-      List.find_index (fun s -> c = s) ctx
+  type ctx = {
+    bvars : string list;
+    fvars : (string * int) list;
+  }
+
+  let find_ctx id ctx =
+    match List.find_index (fun s -> id = s) ctx.bvars with
+    | Some idx -> idx, ctx
+    | None ->
+        match List.assoc_opt id ctx.fvars with
+        | Some idx -> idx, ctx
+        | None ->
+            let idx = List.length ctx.fvars + List.length ctx.bvars in
+            let ctx = { ctx with fvars = (id, idx) :: ctx.fvars } in
+            idx, ctx
   ;;
 
   let rec parse input =
-    (let+ (expr, _) = exp ~ctx:[] in (* dispose of context *)
+    (let+ (expr, _) = exp ~ctx:{ bvars=[]; fvars=[] } in (* dispose of context *)
      expr)
     input
 
-  and exp ~(ctx : string list) (input : Input.t) =
+  and exp ~ctx input =
     (let* expr, ctx = space *> (var ctx <|> lambda ctx <|> application ctx) in
      return (expr, ctx))
     input
 
   and var ctx input =
     (let* var = identifier in
-     let index = find_ctx var ctx in
+     let index, ctx = find_ctx var ctx in
      return (Var (var, index), ctx))
     input
 
@@ -46,7 +58,7 @@ end = struct
 
   and lambda ctx input =
     (let* var = charp '\\' *> identifier in
-     let scope_bound_ctx = var :: ctx in
+     let scope_bound_ctx = { ctx with bvars = var :: ctx.bvars } in
      let* body, _ = charp '.' *> exp ~ctx:scope_bound_ctx <* space in
      return (Lambda (var, body), ctx))
     input
@@ -62,7 +74,7 @@ let rec to_string ?(indices=false) = function
   | Lambda (id, body) ->
     if indices then Printf.sprintf "λ %s" (to_string ~indices body)
     else Printf.sprintf "λ%s.%s" id (to_string body)
-  ;;
+;;
 
 let of_string str =
   let input = Parsers.Input.make str in
