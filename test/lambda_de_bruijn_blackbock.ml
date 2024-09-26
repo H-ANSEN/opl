@@ -8,7 +8,7 @@ open! Opl
 let test_dbi str =
   Printf.printf "%s\n"
     (match Lambda.of_string str with
-     | Ok ast -> Lambda.to_string ~indices:true ast
+     | Ok ast -> Lambda.to_string_nameless ast
      | Error err -> Parsers.Error.to_string err)
 ;;
 
@@ -27,20 +27,10 @@ let%expect_test "de bruijn notation on open expression" =
   test_dbi {| \x.\y.(y z) |}; [%expect "λ λ (0 2)"];
   test_dbi {| \x.(x (y y)) |}; [%expect "λ (0 (1 1))"];
   test_dbi {| \x.(x (y z)) |}; [%expect "λ (0 (1 2))"];
-  test_dbi {| \x.(a (b (a b))) |}; [%expect "λ (1 (2 (1 2)))"];
-  test_dbi {| \x.(a (b (a \x.x))) |}; [%expect "λ (1 (2 (1 λ 0)))"];
   test_dbi {| (\x.(x y) \x.(x y)) |}; [%expect "(λ (0 1) λ (0 1))"];
   test_dbi {| \a.(b \c.(c d)) |}; [%expect "λ (1 λ (0 3))"]; 
-
-
-
-
-
-
-
-
-  test_dbi {| \a.(b \c.(c (d \x.(x d)))) |}; [%expect {| λ (1 λ (0 (3 λ (0 3)))) |}];
-
-  test_dbi {| \a.(e \b.(e \c.(e \d.(e d)))) |}; [%expect {| λ (1 λ (1 λ (1 λ (1 3)))) |}];
-  test_dbi {| \a.(h \b.(i \c.(j \d.(k d)))) |}; [%expect {| λ (1 λ (1 λ (1 λ (1 3)))) |}];
+  test_dbi {| \x.(a (b (a b))) |}; [%expect "λ (1 (2 (1 2)))"];
+  test_dbi {| \x.(a (b (a \x.x))) |}; [%expect "λ (1 (2 (1 λ 0)))"];
+  test_dbi {| \a.(b \c.(c (d \x.(x d)))) |}; [%expect {| λ (1 λ (0 (3 λ (0 4)))) |}];
+  test_dbi {| \a.(e \b.(e \c.(e \d.(e a)))) |}; [%expect "λ (1 λ (2 λ (3 λ (4 3))))"];
 ;;

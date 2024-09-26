@@ -17,63 +17,68 @@ end = struct
   open Parsers
   open Parsers.Let_syntax
 
-  type ctx = {
-    bvars : string list;
-    fvars : (string * int) list;
+  type context = {
+    depth : int;
+    b_map : identifier list;
+    f_map : identifier list;
   }
 
-  let find_ctx id ctx =
-    match List.find_index (fun s -> id = s) ctx.bvars with
-    | Some idx -> idx, ctx
+  let find_ctx var ctx =
+    let find = List.find_index (fun id -> id = var) in
+    match find ctx.b_map with
+    | Some i -> i, ctx
     | None ->
-        match List.assoc_opt id ctx.fvars with
-        | Some idx -> idx, ctx
+        match find ctx.f_map with
+        | Some i -> i + ctx.depth, ctx
         | None ->
-            let idx = List.length ctx.fvars + List.length ctx.bvars in
-            let ctx = { ctx with fvars = (id, idx) :: ctx.fvars } in
+            let idx = ctx.depth + List.length ctx.f_map in
+            let ctx = { ctx with f_map = List.append ctx.f_map [var] } in
             idx, ctx
   ;;
 
   let rec parse input =
-    (let+ (expr, _) = exp ~ctx:{ bvars=[]; fvars=[] } in (* dispose of context *)
-     expr)
+    let initial_context = { depth = 0; b_map = []; f_map = [] } in
+    (let+ (expression, _) = exp ~ctx:initial_context in
+     expression)
     input
 
   and exp ~ctx input =
-    (let* expr, ctx = space *> (var ctx <|> lambda ctx <|> application ctx) in
-     return (expr, ctx))
-    input
+    (space *> (var ctx <|> lam ctx <|> app ctx)) input
 
   and var ctx input =
     (let* var = identifier in
-     let index, ctx = find_ctx var ctx in
+     let index, ctx = find_ctx var ctx in 
      return (Var (var, index), ctx))
     input
 
-  and application ctx input =
+  and app ctx input =
     (let* callee, ctx = charp '(' *> space *> exp ~ctx <* space in
      let* argument, ctx = exp ~ctx <* space <* charp ')' in
      return (Application (callee, argument), ctx))
     input
 
-  and lambda ctx input =
-    (let* var = charp '\\' *> identifier in
-     let scope_bound_ctx = { ctx with bvars = var :: ctx.bvars } in
+  and lam ctx input =
+    (let* bound_var = charp '\\' *> identifier in
+     let scope_bound_ctx = { ctx with depth = ctx.depth + 1;
+                                      b_map = bound_var :: ctx.b_map; } in
      let* body, _ = charp '.' *> exp ~ctx:scope_bound_ctx <* space in
-     return (Lambda (var, body), ctx))
+     return (Lambda (bound_var, body), ctx))
     input
 
   and identifier = map alpha ~f:Char.escaped
   and space = many (charp ' ' <|> charp '\t' <|> charp '\n' <|> charp '\r')
 end
 
-let rec to_string ?(indices=false) = function
-  | Var (id, idx) -> if indices then Int.to_string idx else id
-  | Application (e0, e1) ->
-    Printf.sprintf "(%s %s)" (to_string ~indices e0) (to_string ~indices e1)
-  | Lambda (id, body) ->
-    if indices then Printf.sprintf "λ %s" (to_string ~indices body)
-    else Printf.sprintf "λ%s.%s" id (to_string body)
+let rec to_string = function
+  | Var (id, _) -> id
+  | Lambda (id, body) -> Printf.sprintf "λ%s.%s" id (to_string body)
+  | Application (e0, e1) -> Printf.sprintf "(%s %s)" (to_string e0) (to_string e1)
+;;
+
+let rec to_string_nameless = function
+  | Var (_, idx) -> Int.to_string idx
+  | Lambda (_, body) -> Printf.sprintf "λ %s" (to_string_nameless body)
+  | Application (e0, e1) -> Printf.sprintf "(%s %s)" (to_string_nameless e0) (to_string_nameless e1)
 ;;
 
 let of_string str =
